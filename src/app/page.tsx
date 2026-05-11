@@ -1,6 +1,7 @@
 import { Dashboard } from '@/components/Dashboard';
 import { TransactionModal } from '@/components/TransactionModal';
 import { TransactionHistory } from '@/components/TransactionHistory';
+import { ItemCreateModal } from '@/components/ItemCreateModal';
 
 export default function Home() {
   return (
@@ -24,7 +25,8 @@ export default function Home() {
               <h2 className="text-2xl font-bold text-slate-800">リアルタイム在庫</h2>
               <p className="text-slate-500 text-sm mt-1">在庫情報は自動的に更新されます</p>
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
+              <ItemCreateModal />
               <TransactionModal type="IN" />
               <TransactionModal type="OUT" />
             </div>
