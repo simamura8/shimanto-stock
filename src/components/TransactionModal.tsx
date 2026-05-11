@@ -7,15 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type InventoryItem = { id: string; name: string; unit: string; current_stock: number; };
-type Shop = { id: string; name: string; };
+type Store = { id: string; name: string; };
 
 export function TransactionModal({ type, onSuccess }: { type: 'IN' | 'OUT', onSuccess?: () => void }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<InventoryItem[]>([]);
-  const [shops, setShops] = useState<Shop[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   
   const [selectedItem, setSelectedItem] = useState<string>('');
-  const [selectedShop, setSelectedShop] = useState<string>('');
+  const [selectedStore, setSelectedStore] = useState<string>('');
   const [quantity, setQuantity] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
@@ -23,14 +23,14 @@ export function TransactionModal({ type, onSuccess }: { type: 'IN' | 'OUT', onSu
     if (open) {
       supabase.from('inventory').select('id, name, unit, current_stock').order('id').then(({ data }) => data && setItems(data));
       if (type === 'OUT') {
-        supabase.from('shops').select('id, name').order('id').then(({ data }) => data && setShops(data));
+        supabase.from('stores').select('id, name').order('id').then(({ data }) => data && setStores(data));
       }
     }
   }, [open, type]);
 
   const handleSubmit = async () => {
     if (!selectedItem || !quantity) return;
-    if (type === 'OUT' && !selectedShop) return;
+    if (type === 'OUT' && !selectedStore) return;
     
     setLoading(true);
     const numQty = parseFloat(quantity);
@@ -44,7 +44,7 @@ export function TransactionModal({ type, onSuccess }: { type: 'IN' | 'OUT', onSu
       await Promise.all([
         supabase.from('transactions').insert({
           item_id: selectedItem,
-          shop_id: type === 'OUT' ? selectedShop : null,
+          store_id: type === 'OUT' ? selectedStore : null,
           type: type,
           quantity: numQty
         }),
@@ -52,7 +52,7 @@ export function TransactionModal({ type, onSuccess }: { type: 'IN' | 'OUT', onSu
       ]);
       setOpen(false);
       setSelectedItem('');
-      setSelectedShop('');
+      setSelectedStore('');
       setQuantity('');
       if(onSuccess) onSuccess();
     } catch(e) {
@@ -90,12 +90,12 @@ export function TransactionModal({ type, onSuccess }: { type: 'IN' | 'OUT', onSu
           {type === 'OUT' && (
             <div className="space-y-2">
               <label className="text-lg font-medium text-slate-700">卸先店舗を選択</label>
-              <Select value={selectedShop} onValueChange={(val) => setSelectedShop(val as string)}>
+              <Select value={selectedStore} onValueChange={(val) => setSelectedStore(val as string)}>
                 <SelectTrigger className="h-14 text-lg">
                   <SelectValue placeholder="店舗を選んでください" />
                 </SelectTrigger>
                 <SelectContent>
-                  {shops.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  {stores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -124,3 +124,4 @@ export function TransactionModal({ type, onSuccess }: { type: 'IN' | 'OUT', onSu
     </Dialog>
   );
 }
+

@@ -2,6 +2,7 @@ import { Dashboard } from '@/components/Dashboard';
 import { TransactionModal } from '@/components/TransactionModal';
 import { TransactionHistory } from '@/components/TransactionHistory';
 import { ItemCreateModal } from '@/components/ItemCreateModal';
+import { StoreCreateModal } from '@/components/StoreCreateModal';
 import { StockAnalysis } from '@/components/StockAnalysis';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -15,6 +16,7 @@ export default function Home() {
             <h1 className="text-2xl font-bold tracking-wider">四万十・産直在庫管理</h1>
           </div>
           <div className="flex items-center gap-4">
+             <StoreCreateModal />
              <ItemCreateModal />
              <div className="text-sm font-medium px-3 py-1 bg-emerald-800 rounded-full shadow-inner">DEMO</div>
           </div>
