@@ -3,16 +3,17 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 import { StockTrendChart } from './StockTrendChart';
 import { StoreDistributionPie } from './StoreDistributionPie';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { Trash2, Calendar } from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Trash2, Calendar, TrendingUp, Package, MapPin } from "lucide-react";
 
 type InventoryItem = {
   id: string;
@@ -31,12 +32,25 @@ type Transaction = {
   stores?: { name: string };
 }
 
+// 年別フィルターの選択肢を生成（今年から過去10年 + 全期間）
+function buildYearOptions(): { key: string; label: string }[] {
+  const currentYear = new Date().getFullYear();
+  const options: { key: string; label: string }[] = [];
+  for (let y = currentYear; y >= currentYear - 9; y--) {
+    options.push({ key: `y${y}`, label: `${y}年` });
+  }
+  options.push({ key: 'all', label: '全期間' });
+  return options;
+}
+
+const YEAR_OPTIONS = buildYearOptions();
+
 export function Dashboard() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [timeRange, setTimeRange] = useState<'1m' | '3m' | '1y' | 'all'>('all');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [timeRange, setTimeRange] = useState<string>('all');
 
   const fetchInventory = async () => {
     const { data } = await supabase
@@ -59,21 +73,16 @@ export function Dashboard() {
       .eq('item_id', itemId)
       .order('created_at', { ascending: false });
 
-    // 期間フィルターの適用
     const now = new Date();
-    if (range === '1m') {
-      const date = new Date();
-      date.setMonth(now.getMonth() - 1);
-      query = query.gte('created_at', date.toISOString());
-    } else if (range === '3m') {
-      const date = new Date();
-      date.setMonth(now.getMonth() - 3);
-      query = query.gte('created_at', date.toISOString());
-    } else if (range === '1y') {
-      const date = new Date();
-      date.setFullYear(now.getFullYear() - 1);
-      query = query.gte('created_at', date.toISOString());
+
+    if (range.startsWith('y')) {
+      // 年フィルター: y2026, y2025, ...
+      const year = parseInt(range.slice(1));
+      const from = new Date(year, 0, 1);
+      const to = new Date(year + 1, 0, 1);
+      query = query.gte('created_at', from.toISOString()).lt('created_at', to.toISOString());
     }
+    // 'all' の場合はフィルターなし
 
     const { data } = await query;
     if (data) setTransactions(data as any[]);
@@ -96,12 +105,12 @@ export function Dashboard() {
 
   const handleCardClick = async (item: InventoryItem) => {
     setSelectedItem(item);
-    setIsSheetOpen(true);
+    setIsDialogOpen(true);
     setTimeRange('all');
     await fetchItemTransactions(item.id, 'all');
   };
 
-  const handleRangeChange = async (range: '1m' | '3m' | '1y' | 'all') => {
+  const handleRangeChange = async (range: string) => {
     if (!selectedItem) return;
     setTimeRange(range);
     await fetchItemTransactions(selectedItem.id, range);
@@ -109,7 +118,7 @@ export function Dashboard() {
 
   const handleDeleteItem = async () => {
     if (!selectedItem) return;
-    if (!confirm(`「${selectedItem.name}」を削除してもよろしいですか？取引履歴も影響を受ける可能性があります。`)) return;
+    if (!confirm(`「${selectedItem.name}」を削除してもよろしいですか？`)) return;
 
     try {
       const { error } = await supabase
@@ -120,14 +129,13 @@ export function Dashboard() {
       if (error) throw error;
 
       alert("削除しました");
-      setIsSheetOpen(false);
+      setIsDialogOpen(false);
       fetchInventory();
     } catch (e: any) {
       alert("削除に失敗しました: " + e.message);
     }
   };
 
-  // 店舗別の集計データ作成
   const storeDistribution = useMemo(() => {
     const outs = transactions.filter(t => t.type === 'OUT');
     const totals: Record<string, number> = {};
@@ -142,7 +150,7 @@ export function Dashboard() {
 
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
         {items.map(item => {
           const isLowStock = item.current_stock < item.alert_threshold;
           return (
@@ -172,111 +180,139 @@ export function Dashboard() {
         })}
       </div>
 
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="sm:max-w-[600px] w-full overflow-y-auto">
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="!max-w-[95vw] w-[95vw] h-[95vh] p-8 flex flex-col overflow-hidden">
           {selectedItem && (
             <>
-              <SheetHeader className="mb-6 flex flex-row items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-emerald-700 border-emerald-200 bg-emerald-50">{selectedItem.category || '野菜'}</Badge>
+              <DialogHeader className="flex flex-row items-center justify-between border-b pb-6 mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="bg-emerald-100 p-3 rounded-2xl">
+                    <Package className="size-8 text-emerald-700" />
                   </div>
-                  <SheetTitle className="text-3xl font-bold text-slate-800">{selectedItem.name} の詳細分析</SheetTitle>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white border-none">{selectedItem.category || '野菜'}</Badge>
+                      <span className="text-slate-400 text-sm">ID: {selectedItem.id.slice(0,8)}</span>
+                    </div>
+                    <DialogTitle className="text-4xl font-black text-slate-800">{selectedItem.name}</DialogTitle>
+                  </div>
                 </div>
-                <Button variant="ghost" size="icon" className="text-slate-400 hover:text-red-500 transition-colors" onClick={handleDeleteItem}>
-                  <Trash2 className="size-5" />
-                </Button>
-              </SheetHeader>
-
-              <div className="space-y-8">
-                {/* 期間選択フィルター */}
-                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg w-fit">
-                  <Calendar className="size-4 text-slate-500 mx-2" />
-                  {(['1m', '3m', '1y', 'all'] as const).map((range) => (
-                    <Button 
-                      key={range}
-                      variant={timeRange === range ? "default" : "ghost"}
-                      size="sm"
-                      className={`text-xs px-3 h-8 ${timeRange === range ? 'bg-emerald-600' : 'text-slate-600'}`}
-                      onClick={() => handleRangeChange(range)}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl">
+                    <Calendar className="size-4 text-slate-500" />
+                    <select
+                      value={timeRange}
+                      onChange={(e) => handleRangeChange(e.target.value)}
+                      className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer pr-2 py-1"
                     >
-                      {range === '1m' ? '1ヶ月' : range === '3m' ? '3ヶ月' : range === '1y' ? '1年' : '総合'}
-                    </Button>
-                  ))}
-                </div>
-
-                {/* 現在の状況 */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-slate-50 border">
-                    <div className="text-xs font-bold text-slate-400 uppercase">現在庫</div>
-                    <div className="text-2xl font-bold text-slate-800 mt-1">{selectedItem.current_stock} {selectedItem.unit}</div>
+                      {YEAR_OPTIONS.map((opt) => (
+                        <option key={opt.key} value={opt.key}>{opt.label}</option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="p-4 rounded-xl bg-slate-50 border">
-                    <div className="text-xs font-bold text-slate-400 uppercase">アラート基準</div>
-                    <div className="text-2xl font-bold text-slate-800 mt-1">{selectedItem.alert_threshold} {selectedItem.unit}</div>
-                  </div>
+                  <Button variant="outline" size="icon" className="text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all rounded-xl shrink-0" onClick={handleDeleteItem}>
+                    <Trash2 className="size-5" />
+                  </Button>
                 </div>
+              </DialogHeader>
 
-                {/* 推移グラフ */}
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <span className="w-1 h-4 bg-emerald-500 rounded-full"></span>
-                    在庫推移
-                  </h3>
-                  <div className="bg-white p-4 rounded-xl border">
-                    {transactions.length > 0 ? (
-                      <StockTrendChart 
-                        currentStock={selectedItem.current_stock} 
-                        transactions={transactions} 
-                        unit={selectedItem.unit}
-                      />
-                    ) : (
-                      <div className="h-[200px] flex items-center justify-center text-slate-400 text-sm italic">
-                        指定期間の取引履歴がありません
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <div className="flex-1 overflow-y-auto pr-4 -mr-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-10">
+                  {/* 左側：メイングラフ */}
+                  <div className="lg:col-span-2 space-y-8">
+                    <Card className="border shadow-sm overflow-hidden">
+                      <CardHeader className="bg-slate-50/50 border-b">
+                        <CardTitle className="text-sm font-bold flex items-center gap-2">
+                          <TrendingUp className="size-4 text-emerald-600" />
+                          在庫推移チャート
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-8">
+                        {transactions.length > 0 ? (
+                          <StockTrendChart 
+                            currentStock={selectedItem.current_stock} 
+                            transactions={transactions} 
+                            unit={selectedItem.unit}
+                          />
+                        ) : (
+                          <div className="h-[300px] flex items-center justify-center text-slate-400 italic">
+                            データが不足しています
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
 
-                {/* 店舗別比率グラフ */}
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <span className="w-1 h-4 bg-emerald-500 rounded-full"></span>
-                    店舗別・出荷比率
-                  </h3>
-                  <div className="bg-white p-4 rounded-xl border">
-                    <StoreDistributionPie data={storeDistribution} />
-                  </div>
-                </div>
-
-                {/* 直近の動き */}
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <span className="w-1 h-4 bg-emerald-500 rounded-full"></span>
-                    履歴
-                  </h3>
-                  <div className="space-y-2">
-                    {transactions.slice(0, 10).map((t, i) => (
-                      <div key={i} className="flex items-center justify-between p-3 bg-white border rounded-lg text-sm shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <Badge className={t.type === 'IN' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none' : 'bg-orange-100 text-orange-700 hover:bg-orange-100 border-none'}>
-                            {t.type}
-                          </Badge>
-                          <span className="font-bold text-slate-700">{t.quantity} {selectedItem.unit}</span>
-                          <span className="text-slate-400 text-xs">{t.stores?.name || t.shops?.name || ''}</span>
+                    <Card className="border shadow-sm">
+                      <CardHeader className="bg-slate-50/50 border-b">
+                        <CardTitle className="text-sm font-bold">取引履歴ログ</CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-sm">
+                            <thead className="sticky top-0 bg-white border-b shadow-sm z-10">
+                              <tr className="text-slate-500 font-medium">
+                                <th className="px-4 py-3">日付</th>
+                                <th className="px-4 py-3">種別</th>
+                                <th className="px-4 py-3">数量</th>
+                                <th className="px-4 py-3">取引先</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {transactions.map((t, i) => (
+                                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                  <td className="px-4 py-3 text-slate-400 text-xs">{new Date(t.created_at).toLocaleString('ja-JP')}</td>
+                                  <td className="px-4 py-3">
+                                    <Badge className={t.type === 'IN' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none' : 'bg-orange-100 text-orange-700 hover:bg-orange-100 border-none'}>
+                                      {t.type === 'IN' ? '入庫' : '出庫'}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-4 py-3 font-bold text-slate-700">{t.quantity} {selectedItem.unit}</td>
+                                  <td className="px-4 py-3 text-slate-500 text-xs flex items-center gap-1">
+                                    <MapPin className="size-3" />
+                                    {t.stores?.name || t.shops?.name || '---'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                        <span className="text-slate-400 text-[10px]">{new Date(t.created_at).toLocaleString('ja-JP')}</span>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* 右側：サブ分析 */}
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="p-6 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-200">
+                        <div className="text-xs font-bold opacity-80 uppercase tracking-widest">現在庫</div>
+                        <div className="text-4xl font-black mt-2">{selectedItem.current_stock} <span className="text-lg font-normal opacity-80">{selectedItem.unit}</span></div>
                       </div>
-                    ))}
+                      <div className="p-6 rounded-2xl bg-white border shadow-sm">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">アラート基準</div>
+                        <div className="text-3xl font-black text-slate-800 mt-2">{selectedItem.alert_threshold} <span className="text-lg font-normal text-slate-400">{selectedItem.unit}</span></div>
+                      </div>
+                    </div>
+
+                    <Card className="border shadow-sm">
+                      <CardHeader className="bg-slate-50/50 border-b">
+                        <CardTitle className="text-sm font-bold flex items-center gap-2">
+                          店舗別出荷比率
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-6">
+                        <StoreDistributionPie data={storeDistribution} />
+                      </CardContent>
+                    </Card>
                   </div>
                 </div>
               </div>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
+
 
 

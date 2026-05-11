@@ -74,6 +74,31 @@ npm run dev
 - `src/components`: UIコンポーネント（Dashboard, Modals等）
 - `src/lib/supabase.ts`: Supabaseクライアント設定
 
+## 🧪 テストデータの管理
+
+開発やデモのために、1000件規模のテストデータを即座に投入・削除できる仕組みを用意しています。
+
+### 事前準備
+スクリプトを実行するために必要なパッケージをインストールしてください（未実施の場合）。
+
+```bash
+npm install @supabase/supabase-js dotenv
+```
+
+### 1. テストデータの投入
+過去1年分の入出庫履歴（約1000件）とテスト用の店舗・品目を生成します。データには `is_test: true` フラグが付与され、名前の先頭に `[TEST]` が付きます。
+
+```bash
+node scratch/generate_test_data.js
+```
+
+### 2. テストデータの一括削除
+`is_test: true` フラグが立っているデータのみを安全に一括削除します。本番環境で登録したデータには影響を与えません。
+
+```bash
+node scratch/delete_test_data.js
+```
+
 ## 📄 ライセンス
 
 MIT License
