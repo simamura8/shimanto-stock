@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "npm run build:next && npm run build:worker",
     "build:next": "next build",
-    "build:worker": "opennextjs-cloudflare",
+    "build:worker": "opennextjs-cloudflare build",
     "deploy": "npm run build && wrangler pages deploy .open-next",
     "preview": "opennextjs-cloudflare preview"
   },
