@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run build:next && npm run build:worker",
+    "build:next": "next build",
     "build:worker": "opennextjs-cloudflare",
-    "deploy": "npm run build && npm run build:worker && wrangler pages deploy .open-next",
+    "deploy": "npm run build && wrangler pages deploy .open-next",
     "preview": "opennextjs-cloudflare preview"
   },
   "dependencies": {
